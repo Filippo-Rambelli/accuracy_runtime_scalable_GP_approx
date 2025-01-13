@@ -111,8 +111,29 @@ est_marginal_var=vecchia.est$theta.hat[1]
 est_range=vecchia.est$theta.hat[2]
 est_nugget=vecchia.est$theta.hat[4]
 
+#true parameters for likelihood evaluation from vecchia max
+nugget=1.289960802320046784e-01
+marginal_var=5.637642490377192672e+00
+range=5.033750011756336789e+03/10000 #scaled down due to previous scaling down of the coordinates
 
-#negloglik evaluation is skipped due to change of scale
+
+intercept=-5.039085196489946128e+01
+x1=-8.039247275051138457e-06
+x2=4.401559178540987520e-06
+
+
+#negloglik evaluation
+trend<-as.matrix(cbind(1,train_data[,1:2]))%*%c(intercept,x1,x2)
+train_detrended<-train_data$temp-trend
+
+true_negloglik_eval_time <- system.time({
+  true_negloglik <- -vecchia_likelihood(train_detrended, vecchia.approx, c(marginal_var, range, 1.5), nugget)
+})[3]
+
+fake_negloglik_eval_time <- system.time({
+  fake_negloglik <- -vecchia_likelihood(train_detrended, vecchia.approx, c(2 * marginal_var, 2 * range, 1.5), 2 * nugget)
+})[3]
+
 
 # Predict on the training set
 pred_train_time <- system.time({
@@ -177,10 +198,10 @@ writeLines(c(
   paste0("rmse test: ", test_rmse),
   paste0("crps train: ", train_crps),
   paste0("crps test: ", test_crps),
-  paste0("true negloglik: "),
-  paste0("fake negloglik: "),
-  paste0("time for true negloglik evaluation: "),
-  paste0("time for fake negloglik evaluation: "),
+  paste0("true negloglik: ",true_negloglik),
+  paste0("fake negloglik: ",fake_negloglik),
+  paste0("time for true negloglik evaluation: ",true_negloglik_eval_time),
+  paste0("time for fake negloglik evaluation: ",fake_negloglik_eval_time)
 ), file_conn)
 
 # Close the file connection
