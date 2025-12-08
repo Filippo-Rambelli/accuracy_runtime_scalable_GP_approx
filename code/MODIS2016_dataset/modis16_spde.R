@@ -74,14 +74,14 @@ run_spde<-function(max.edge){
   pred_train_mean<-rpmu$summary.fitted.values[train_index, 1]
   #add nugget to obtain variances for the observable process
   pred_train_var<-rpmu$summary.fitted.values[train_index, 2]^2+ 
-    1/rpmu$summary.hyperpar[1,"0.5quant"] 
+    1/rpmu$summary.hyperpar[1,"mode"] 
   
   #extract test preds
   test_index<-inla.stack.index(stk.full, 'test')$data
   pred_test_mean<-rpmu$summary.fitted.values[test_index, 1]
   #add nugget to obtain variances for the observable process
   pred_test_var<-rpmu$summary.fitted.values[test_index, 2]^2+ 
-    1/rpmu$summary.hyperpar[1,"0.5quant"]
+    1/rpmu$summary.hyperpar[1,"mode"]
   
   
   #RMSE

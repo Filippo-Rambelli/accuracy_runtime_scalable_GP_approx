@@ -87,21 +87,21 @@ run_spde<-function(max.edge){
   train_index<-inla.stack.index(stk.full, 'train')$data
   pred_train_mean<-rpmu$summary.fitted.values[train_index, 1]
   pred_train_var<-rpmu$summary.fitted.values[train_index, 2]^2+ 
-    1/rpmu$summary.hyperpar[1,"0.5quant"]
+    1/rpmu$summary.hyperpar[1,"mode"]
   
   #extract inter preds
   inter_index<-inla.stack.index(stk.full, 'inter')$data
   pred_inter_mean<-rpmu$summary.fitted.values[inter_index, 1]
   #add nugget to obtain variances for the observable process
   pred_inter_var<-rpmu$summary.fitted.values[inter_index, 2]^2+ 
-    1/rpmu$summary.hyperpar[1,"0.5quant"]
+    1/rpmu$summary.hyperpar[1,"mode"]
   
   #extract extra preds
   extra_index<-inla.stack.index(stk.full, 'extra')$data
   pred_extra_mean<-rpmu$summary.fitted.values[extra_index, 1]
   #add nugget to obtain variances for the observable process
   pred_extra_var<-rpmu$summary.fitted.values[extra_index, 2]^2+ 
-    1/rpmu$summary.hyperpar[1,"0.5quant"]
+    1/rpmu$summary.hyperpar[1,"mode"]
   
   #RMSE
   train_rmse<-sqrt(mean((house_train$log_price - pred_train_mean)^2))
