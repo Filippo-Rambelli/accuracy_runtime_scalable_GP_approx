@@ -7,10 +7,17 @@ library(rSPDE)
 
 options(mc.cores = 8)
 
+crps <- function(predlist,trueobs) {
+  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
+  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
+                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
+  return(scores)
+}
+
 #we define a function that will be called for every tuning parameter
 run_spde<-function(max.edge){
-  train_data <- read.csv("/data/MODIS_data_train.txt", row.names=1, sep="")
-  test_data<-read.csv("/data/MODIS_data_test.txt", row.names=1, sep="")
+  train_data <- read.csv("data/MODIS_data_train.txt", row.names=1, sep="")
+  test_data<-read.csv("data/MODIS_data_test.txt", row.names=1, sep="")
   
   #scale down coordinates for numerical stability
   train_data$east<-train_data$east/10000
@@ -20,10 +27,6 @@ run_spde<-function(max.edge){
   
   coords_train <- as.matrix(train_data[, 1:2])
   coords_test<- as.matrix(test_data[, 1:2])
-  
-  
-  range(rbind(coords_train,coords_test)[,1])
-  range(rbind(coords_train,coords_test)[,2])
   
   #define the mesh limits
   pl.dom <- cbind(c(-890, -778, -890, -778), c(333, 333, 445, 445))
@@ -101,21 +104,14 @@ run_spde<-function(max.edge){
                       0.5*log(2*pi*pred_test_var) ,na.rm=T)
   
   #crps
-  crps <- function(predlist,trueobs) {
-    z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
-    scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
-                               2 * dnorm(z, 0, 1) - 1/sqrt(pi))
-    return(scores)
-  }
-  
   train_crps<-mean(crps(list(mean=pred_train_mean,sd=sqrt(pred_train_var)),train_data$temp))
   test_crps<-mean(crps(list(mean=pred_test_mean,sd=sqrt(pred_test_var)),test_data$temp))
   
   # Create the filename
-  filename <- paste0("modis23_spde_",max.edge)
+  filename <- paste0("spde_modis23_max_edge",max.edge)
   
   # Open the file for writing
-  file_path <- paste0(filename, ".txt")
+  file_path <- paste0("results/modis23/",filename, ".txt")
   file_conn <- file(file_path, "w")
   
   # Write the data to the file
@@ -132,9 +128,9 @@ run_spde<-function(max.edge){
     paste0("crps train: ", train_crps),
     paste0("crps test: ", test_crps),
     paste0("true negloglik: "),
-    paste0("fake negloglik: "),
+    paste0("wrong negloglik: "),
     paste0("time for true negloglik evaluation: "),
-    paste0("time for fake negloglik evaluation: "),
+    paste0("time for wrong negloglik evaluation: "),
   ), file_conn)
   
   # Close the file connection

@@ -78,28 +78,35 @@ vecchia_estimate_fixed_smoothness_1.5 <- function(
               trend = trend, locs = locs, covmodel = covmodel))
 }
 
+#load data
+house_train <- read_csv("data/house_train.csv")
+house_inter <- read_csv("data/house_interpolation.csv")
+house_extra <- read_csv("data/house_extrapolation.csv")
+
+#we center the data to match the 0 mean assumption
+train_mean<-mean(house_train$log_price)
+
+house_train$log_price<-house_train$log_price-train_mean
+house_inter$log_price<-house_inter$log_price-train_mean
+house_extra$log_price<-house_extra$log_price-train_mean
+
+#covariance parameters estimated from exact calculations
+range=6.182155717795291139e+02
+nugget=7.871528499294050407e-02
+marginal_var=4.896777870079787598e-01
+
+#loading results from exact calculations to perform a comparison
+pred_exact_mean_train <- read_csv("exact_results/exact_pred_mean_train_house.txt",col_names = FALSE)$X1
+pred_exact_mean_inter <- read_csv("exact_results/exact_pred_mean_inter_house.txt",col_names = FALSE)$X1
+pred_exact_mean_extra <- read_csv("exact_results/exact_pred_mean_extra_house.txt",col_names = FALSE)$X1
+
+pred_exact_var_train <- read_csv("exact_results/exact_pred_var_train_house.txt",col_names = FALSE)$X1
+pred_exact_var_inter <- read_csv("exact_results/exact_pred_var_inter_house.txt",col_names = FALSE)$X1
+pred_exact_var_extra <- read_csv("exact_results/exact_pred_var_extra_house.txt",col_names = FALSE)$X1
+
 #we define a function that will be called for every tuning parameter
 run_mra<-function(r){
   set.seed(r)
-  #load data
-  house_train <- read_csv("/data/house_train.csv", col_types = cols(long = col_number(),
-                                                lat = col_number(),log_price = col_number()))
-  house_inter <- read_csv("/data/house_interpolation.csv",col_types = cols(long = col_number(),
-                                            lat = col_number(), log_price = col_number()))
-  house_extra <- read_csv("/data/house_extrapolation.csv", col_types = cols(long = col_number(), 
-                                          lat = col_number(), log_price = col_number()))
-  
-  #we center the data to match the 0 mean assumption
-  train_mean<-mean(house_train$log_price)
-  
-  house_train$log_price<-house_train$log_price-train_mean
-  house_inter$log_price<-house_inter$log_price-train_mean
-  house_extra$log_price<-house_extra$log_price-train_mean
-  
-  #covariance parameters estimated from exact calculations
-  range=6.182155717795291139e+02
-  nugget=7.871528499294050407e-02
-  marginal_var=4.896777870079787598e-01
   
   #we keep J fixed and equal to 2, and we only vary r. M is then determined automatically
   mra.options.mra = list(r = c(r), J = 2)
@@ -126,8 +133,8 @@ run_mra<-function(r){
   })[3]
   
   
-  fake_negloglik_eval_time <- system.time({
-    fake_negloglik<- -vecchia_likelihood(house_train$log_price, vecchia.approx, 
+  wrong_negloglik_eval_time <- system.time({
+    wrong_negloglik<- -vecchia_likelihood(house_train$log_price, vecchia.approx, 
                                          c(2*marginal_var, 2*range, 1.5), 2 * nugget)
   })[3]
   
@@ -191,15 +198,6 @@ run_mra<-function(r){
   extra_crps<-mean(crps(list(mean=pred_extra$mu.pred,sd=sqrt(pred_extra$var.pred)),
                         house_extra$log_price))
   
-  #loading results from exact calculations to perform a comparison
-  pred_exact_mean_train <- read_csv("/saved_values_exactGP/exact_pred_mean_train_house.txt",   col_names = FALSE)$X1
-  pred_exact_mean_inter <- read_csv("/saved_values_exactGP/exact_pred_mean_inter_house.txt",   col_names = FALSE)$X1
-  pred_exact_mean_extra <- read_csv("/saved_values_exactGP/exact_pred_mean_extra_house.txt",   col_names = FALSE)$X1
-  
-  pred_exact_var_train <- read_csv("/saved_values_exactGP/exact_pred_var_train_house.txt",   col_names = FALSE)$X1
-  pred_exact_var_inter <- read_csv("/saved_values_exactGP/exact_pred_var_inter_house.txt",   col_names = FALSE)$X1
-  pred_exact_var_extra <- read_csv("/saved_values_exactGP/exact_pred_var_extra_house.txt",   col_names = FALSE)$X1
-  
   #rmse between predictive means
   train_rmse_mean<-sqrt(mean((pred_train$mu.obs-pred_exact_mean_train)^2))
   inter_rmse_mean<-sqrt(mean((pred_inter$mu.pred-pred_exact_mean_inter)^2))
@@ -221,7 +219,7 @@ run_mra<-function(r){
   extra_kl<-compute_kl(pred_exact_var_extra,pred_extra$var.pred,pred_exact_mean_extra,pred_extra$mu.pred)
   
   # Create the filename
-  filename <- paste0("house_mra_",r)
+  filename <- paste0("results/house/mra_house_",r)
   
   # Open the file for writing
   file_path <- paste0(filename, ".txt")
@@ -254,9 +252,9 @@ run_mra<-function(r){
     paste0("crps interpolation: ", inter_crps),
     paste0("crps extrapolation: ", extra_crps),
     paste0("true negloglik: ", true_negloglik),
-    paste0("fake negloglik: ", fake_negloglik),
+    paste0("wrong negloglik: ", wrong_negloglik),
     paste0("time for true negloglik evaluation: ", true_negloglik_eval_time),
-    paste0("time for fake negloglik evaluation: ", fake_negloglik_eval_time),
+    paste0("time for wrong negloglik evaluation: ", wrong_negloglik_eval_time),
 
   ), file_conn)
   

@@ -14,17 +14,36 @@ library(readr)
 opts_FRK$set("parallel",8L)
 print(opts_FRK$get("parallel"))
 
+#loading results from exact calculations to perform a comparison
+pred_exact_mean_train <- read_csv("/data/pred_mean_train.txt",   col_names = FALSE)$X1
+pred_exact_mean_inter <- read_csv("/data/pred_mean_inter.txt",   col_names = FALSE)$X1
+pred_exact_mean_extra <- read_csv("/data/pred_mean_extra.txt",   col_names = FALSE)$X1
+
+pred_exact_var_train <- read_csv("/data/pred_var_train.txt",   col_names = FALSE)$X1
+pred_exact_var_inter <- read_csv("/data/pred_var_inter.txt",   col_names = FALSE)$X1
+pred_exact_var_extra <- read_csv("/data/pred_var_extra.txt",   col_names = FALSE)$X1
+
+crps <- function(predlist,trueobs) {
+  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
+  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
+                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
+  return(scores)
+}
+
+compute_kl<-function(var1,var2,mean1,mean2){
+  kl = log(sqrt(var2)/sqrt(var1)) + (var1 + (mean1 - mean2)**2)/(2*var2) - 0.5
+  sum(kl)
+}
+
 #we define a function that will be called for every tuning parameter
 run_frk<-function(nres){
   set.seed(nres)
   
   #load data
-  house_train <- read_csv("/data/house_train.csv", col_types = cols(long = col_number(),
-                                    lat = col_number(),log_price = col_number()))
-  house_inter <- read_csv("/data/house_interpolation.csv",col_types = cols(long = col_number(),
-                                  lat = col_number(), log_price = col_number()))
-  house_extra <- read_csv("/data/house_extrapolation.csv", col_types = cols(long = col_number(), 
-                                  lat = col_number(), log_price = col_number()))
+  house_train <- read_csv("data/house_train.csv")
+  house_inter <- read_csv("data/house_interpolation.csv")
+  house_extra <- read_csv("data/house_extrapolation.csv")
+  
   #we center the data to match the 0 mean assumption
   train_mean<-mean(house_train$log_price)
   
@@ -92,25 +111,9 @@ run_frk<-function(nres){
                        0.5*log(2*pi*pred_extra$var) )
   
   #crps
-  crps <- function(predlist,trueobs) {
-    z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
-    scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
-                               2 * dnorm(z, 0, 1) - 1/sqrt(pi))
-    return(scores)
-  }
-  
   train_crps<-mean(crps(list(mean=pred_train$mu,sd=sqrt(pred_train$var)),house_train$log_price))
   inter_crps<-mean(crps(list(mean=pred_inter$mu,sd=sqrt(pred_inter$var)),house_inter$log_price))
   extra_crps<-mean(crps(list(mean=pred_extra$mu,sd=sqrt(pred_extra$var)),house_extra$log_price))
-  
-  #loading results from exact calculations to perform a comparison
-  pred_exact_mean_train <- read_csv("/saved_values_exactGP/exact_pred_mean_train_house.txt",   col_names = FALSE)$X1
-  pred_exact_mean_inter <- read_csv("/saved_values_exactGP/exact_pred_mean_inter_house.txt",   col_names = FALSE)$X1
-  pred_exact_mean_extra <- read_csv("/saved_values_exactGP/exact_pred_mean_extra_house.txt",   col_names = FALSE)$X1
-  
-  pred_exact_var_train <- read_csv("/saved_values_exactGP/exact_pred_var_train_house.txt",   col_names = FALSE)$X1
-  pred_exact_var_inter <- read_csv("/saved_values_exactGP/exact_pred_var_inter_house.txt",   col_names = FALSE)$X1
-  pred_exact_var_extra <- read_csv("/saved_values_exactGP/exact_pred_var_extra_house.txt",   col_names = FALSE)$X1
   
   #rmse between predictive means
   train_rmse_mean<-sqrt(mean((pred_train$mu-pred_exact_mean_train)^2))
@@ -123,17 +126,12 @@ run_frk<-function(nres){
   extra_rmse_var<-sqrt(mean((pred_extra$var-pred_exact_var_extra)^2))
   
   #kl divergence
-  compute_kl<-function(var1,var2,mean1,mean2){
-    kl = log(sqrt(var2)/sqrt(var1)) + (var1 + (mean1 - mean2)**2)/(2*var2) - 0.5
-    sum(kl)
-  }
-  
   train_kl<-compute_kl(pred_exact_var_train,pred_train$var,pred_exact_mean_train,pred_train$mu)
   inter_kl<-compute_kl(pred_exact_var_inter,pred_inter$var,pred_exact_mean_inter,pred_inter$mu)
   extra_kl<-compute_kl(pred_exact_var_extra,pred_extra$var,pred_exact_mean_extra,pred_extra$mu)
   
   # Create the filename
-  filename <- paste0("house_frk_",nres)
+  filename <- paste0("results/house/frk_house_",nres)
   
   # Open the file for writing
   file_path <- paste0(filename, ".txt")
@@ -166,9 +164,9 @@ run_frk<-function(nres){
     paste0("crps interpolation: ", inter_crps),
     paste0("crps extrapolation: ", extra_crps),
     paste0("true negloglik: "),
-    paste0("fake negloglik: "),
+    paste0("wrong negloglik: "),
     paste0("time for true negloglik evaluation: "),
-    paste0("time for fake negloglik evaluation: "),
+    paste0("time for wrong negloglik evaluation: "),
   ), file_conn)
   
   # Close the file connection

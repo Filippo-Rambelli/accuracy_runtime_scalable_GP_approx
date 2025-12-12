@@ -1,14 +1,21 @@
 #The code is based on an implementation from Joe Guinnes, to whom we give credits
 #https://github.com/joeguinness/npspec/blob/master/vignettes/challenge_surface_temp.R
 
-library("npspec")
+library(npspec)
 library(Matrix)
 
 options(mc.cores = 8)
 
+crps <- function(predlist,trueobs) {
+  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
+  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
+                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
+  return(scores)
+}
+
 #load data
-train_data <- read.csv("/data/MODIS_data_train.txt", row.names=1, sep="")
-test_data<-read.csv("/data/MODIS_data_test.txt", row.names=1, sep="")
+train_data <- read.csv("data/MODIS_data_train.txt", row.names=1, sep="")
+test_data<-read.csv("data/MODIS_data_test.txt", row.names=1, sep="")
 
 full_data<-rbind(train_data,test_data)
 
@@ -92,13 +99,6 @@ test_score<-mean( (0.5*(pred_vec[test_index]-test_matrix[test_index])^2)/predvar
                     0.5*log(2*pi*pred_vec[test_index]) ,na.rm=T)
 
 #crps
-crps <- function(predlist,trueobs) {
-  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
-  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
-                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
-  return(scores)
-}
-
 train_crps<-mean(crps(list(mean=pred_vec[train_index],sd=sqrt(predvar_vec[train_index])),
                       train_matrix[train_index]))
 test_crps<-mean(crps(list(mean=pred_vec[test_index],sd=sqrt(predvar_vec[test_index])),
@@ -106,10 +106,10 @@ test_crps<-mean(crps(list(mean=pred_vec[test_index],sd=sqrt(predvar_vec[test_ind
 
 
 # Create the filename
-filename <- paste0("modis23_npspec_",embedding_factor)
+filename <- paste0("npspec_modis23_",embedding_factor)
 
 # Open the file for writing
-file_path <- paste0(filename, ".txt")
+file_path <- paste0("results/modis23/",filename, ".txt")
 file_conn <- file(file_path, "w")
 
 # Write the data to the file
@@ -126,9 +126,9 @@ writeLines(c(
   paste0("crps train: ", train_crps),
   paste0("crps test: ", test_crps),
   paste0("true negloglik: "),
-  paste0("fake negloglik: "),
+  paste0("wrong negloglik: "),
   paste0("time for true negloglik evaluation: "),
-  paste0("time for fake negloglik evaluation: "),
+  paste0("time for wrong negloglik evaluation: "),
 ), file_conn)
 
 # Close the file connection

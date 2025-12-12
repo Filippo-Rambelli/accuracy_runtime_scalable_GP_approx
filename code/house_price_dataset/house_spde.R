@@ -8,30 +8,51 @@ library(inlabru)
 
 options(mc.cores = 8)
 
+#load data
+house_train <- read_csv("data/house_train.csv")
+house_inter <- read_csv("data/house_interpolation.csv")
+house_extra <- read_csv("data/house_extrapolation.csv")
+
+#we center the data to match the 0 mean assumption
+train_mean<-mean(house_train$log_price)
+
+house_train$log_price<-house_train$log_price-train_mean
+house_inter$log_price<-house_inter$log_price-train_mean
+house_extra$log_price<-house_extra$log_price-train_mean
+
+#covariance parameters estimated from exact calculations
+range=6.182155717795291139e+02
+nugget=7.871528499294050407e-02
+marginal_var=4.896777870079787598e-01
+
+#loading results from exact calculations to perform a comparison
+pred_exact_mean_train <- read_csv("exact_results/exact_pred_mean_train_house.txt",col_names = FALSE)$X1
+pred_exact_mean_inter <- read_csv("exact_results/exact_pred_mean_inter_house.txt",col_names = FALSE)$X1
+pred_exact_mean_extra <- read_csv("exact_results/exact_pred_mean_extra_house.txt",col_names = FALSE)$X1
+
+pred_exact_var_train <- read_csv("exact_results/exact_pred_var_train_house.txt",col_names = FALSE)$X1
+pred_exact_var_inter <- read_csv("exact_results/exact_pred_var_inter_house.txt",col_names = FALSE)$X1
+pred_exact_var_extra <- read_csv("exact_results/exact_pred_var_extra_house.txt",col_names = FALSE)$X1
+
+#define the mesh limits
+pl.dom <- cbind(c(484000,488000, 500500,510000, 510000,539000,539000,520900,520900, 484000), 
+                c(195000, 195000, 205000,215000,216500,216500,223450,226500,230000,230000))
+
+crps <- function(predlist,trueobs) {
+  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
+  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
+                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
+  return(scores)
+}
+
+compute_kl<-function(var1,var2,mean1,mean2){
+  kl = log(sqrt(var2)/sqrt(var1)) + (var1 + (mean1 - mean2)**2)/(2*var2) - 0.5
+  sum(kl)
+}
+
 #we define a function that will be called for every tuning parameter
 run_spde<-function(max.edge){
-  #load data
-  house_train <- read_csv("/data/house_train.csv", col_types = cols(long = col_number(),
-                                        lat = col_number(), log_price = col_number()))
-  house_inter <- read_csv("/data/house_interpolation.csv", col_types = cols(long = col_number(),
-                                                lat = col_number(), log_price = col_number()))
-  house_extra <- read_csv("/data/house_extrapolation.csv", col_types = cols(long = col_number(),
-                                                    lat = col_number(), log_price = col_number()))
-  
-  #we center the data to match the 0 mean assumption
-  train_mean<-mean(house_train$log_price)
-  
-  house_train$log_price<-house_train$log_price-train_mean
-  house_inter$log_price<-house_inter$log_price-train_mean
-  house_extra$log_price<-house_extra$log_price-train_mean
-  
-  coords_train <- as.matrix(house_train[, 1:2])
-  coords_inter<-as.matrix(house_inter[,c(1:2)])
-  coords_extra<-as.matrix(house_extra[,c(1:2)])
-  
-  #define the mesh limits
-  pl.dom <- cbind(c(484000,488000, 500500,510000, 510000,539000,539000,520900,520900, 484000), 
-                  c(195000, 195000, 205000,215000,216500,216500,223450,226500,230000,230000))
+  set.seed(1)
   
   fitting_time <- system.time({ 
     #construct the mesh
@@ -117,26 +138,10 @@ run_spde<-function(max.edge){
                        0.5*log(2*pi*pred_extra_var) )
   
   #crps
-  crps <- function(predlist,trueobs) {
-    z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
-    scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
-                               2 * dnorm(z, 0, 1) - 1/sqrt(pi))
-    return(scores)
-  }
-  
   train_crps<-mean(crps(list(mean=pred_train_mean,sd=sqrt(pred_train_var)),house_train$log_price))
   inter_crps<-mean(crps(list(mean=pred_inter_mean,sd=sqrt(pred_inter_var)),house_inter$log_price))
   extra_crps<-mean(crps(list(mean=pred_extra_mean,sd=sqrt(pred_extra_var)),house_extra$log_price))
-  
-  #loading results from exact calculations to perform a comparison
-  pred_exact_mean_train <- read_csv("/saved_values_exactGP/exact_pred_mean_train_house.txt",   col_names = FALSE)$X1
-  pred_exact_mean_inter <- read_csv("/saved_values_exactGP/exact_pred_mean_inter_house.txt",   col_names = FALSE)$X1
-  pred_exact_mean_extra <- read_csv("/saved_values_exactGP/exact_pred_mean_extra_house.txt",   col_names = FALSE)$X1
-  
-  pred_exact_var_train <- read_csv("/saved_values_exactGP/exact_pred_var_train_house.txt",   col_names = FALSE)$X1
-  pred_exact_var_inter <- read_csv("/saved_values_exactGP/exact_pred_var_inter_house.txt",   col_names = FALSE)$X1
-  pred_exact_var_extra <- read_csv("/saved_values_exactGP/exact_pred_var_extra_house.txt",   col_names = FALSE)$X1
-  
+
   #rmse between predictive means
   train_rmse_mean<-sqrt(mean((pred_train_mean-pred_exact_mean_train)^2))
   inter_rmse_mean<-sqrt(mean((pred_inter_mean-pred_exact_mean_inter)^2))
@@ -148,11 +153,6 @@ run_spde<-function(max.edge){
   extra_rmse_var<-sqrt(mean((pred_extra_var-pred_exact_var_extra)^2))
   
   #kl divergence
-  compute_kl<-function(var1,var2,mean1,mean2){
-    kl = log(sqrt(var2)/sqrt(var1)) + (var1 + (mean1 - mean2)**2)/(2*var2) - 0.5
-    sum(kl)
-  }
-  
   train_kl<-compute_kl(pred_exact_var_train,pred_train_var,pred_exact_mean_train,
                        pred_train_mean)
   inter_kl<-compute_kl(pred_exact_var_inter,pred_inter_var,pred_exact_mean_inter,
@@ -161,7 +161,7 @@ run_spde<-function(max.edge){
                        pred_extra_mean)
   
   # Create the filename
-  filename <- paste0("house_spde_",max.edge)
+  filename <- paste0("results/house/spde_house_",max.edge)
   
   # Open the file for writing
   file_path <- paste0(filename, ".txt")
@@ -194,9 +194,9 @@ run_spde<-function(max.edge){
     paste0("crps interpolation: ", inter_crps),
     paste0("crps extrapolation: ", extra_crps),
     paste0("true negloglik: "),
-    paste0("fake negloglik: "),
+    paste0("wrong negloglik: "),
     paste0("time for true negloglik evaluation: "),
-    paste0("time for fake negloglik evaluation: "),
+    paste0("time for wrong negloglik evaluation: "),
   ), file_conn)
   
   # Close the file connection

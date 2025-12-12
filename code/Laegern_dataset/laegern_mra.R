@@ -79,12 +79,19 @@ vecchia_estimate_fixed_smoothness_1.5 <- function(
               trend = trend, locs = locs, covmodel = covmodel))
 }
 
+crps <- function(predlist,trueobs) {
+  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
+  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
+                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
+  return(scores)
+}
+
 #we define a function that will be called for every tuning parameter
 run_mra<-function(r){
   set.seed(r)
-  laegern_train <- read.csv("/data/laegern_train.csv")
-  laegern_inter <- read.csv("/data/laegern_interpolation.csv")
-  laegern_extra <- read.csv("/data/laegern_extrapolation.csv")
+  laegern_train <- read.csv("data/laegern_train.csv")
+  laegern_inter <- read.csv("data/laegern_interpolation.csv")
+  laegern_extra <- read.csv("data/laegern_extrapolation.csv")
   
   #we center the data to match the 0 mean assumption
   train_mean<-mean(laegern_train$CanopyHeight)
@@ -123,8 +130,8 @@ run_mra<-function(r){
   })[3]
   
   
-  fake_negloglik_eval_time <- system.time({
-    fake_negloglik<- -vecchia_likelihood(laegern_train$CanopyHeight, vecchia.approx, 
+  wrong_negloglik_eval_time <- system.time({
+    wrong_negloglik<- -vecchia_likelihood(laegern_train$CanopyHeight, vecchia.approx, 
                                          c(2*marginal_var, 2*range, 1.5), 2 * nugget)
   })[3]
   
@@ -171,13 +178,6 @@ run_mra<-function(r){
                      + 0.5*log(2*pi*pred_extra$var.pred) )
   
   #crps
-  crps <- function(predlist,trueobs) {
-    z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
-    scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
-                               2 * dnorm(z, 0, 1) - 1/sqrt(pi))
-    return(scores)
-  }
-  
   train_crps<-mean(crps(list(mean=pred_train$mu.obs,sd=sqrt(pred_train$var.obs)),
                         laegern_train$CanopyHeight))
   inter_crps<-mean(crps(list(mean=pred_inter$mu.pred,sd=sqrt(pred_inter$var.pred)),
@@ -187,10 +187,10 @@ run_mra<-function(r){
   
   
   # Create the filename
-  filename <- paste0("laegern_mra_",r)
+  filename <- paste0("mra_laegern_r",r)
   
   # Open the file for writing
-  file_path <- paste0("/cluster/scratch/frambelli/results/laegern/",filename, ".txt")
+  file_path <- paste0("results/laegern/",filename, ".txt")
   file_conn <- file(file_path, "w")
   
   # Write the data to the file
@@ -211,9 +211,9 @@ run_mra<-function(r){
     paste0("crps interpolation: ", inter_crps),
     paste0("crps extrapolation: ", extra_crps),
     paste0("true negloglik: ", true_negloglik),
-    paste0("fake negloglik: ", fake_negloglik),
+    paste0("wrong negloglik: ", wrong_negloglik),
     paste0("time for true negloglik evaluation: ", true_negloglik_eval_time),
-    paste0("time for fake negloglik evaluation: ", fake_negloglik_eval_time),
+    paste0("time for wrong negloglik evaluation: ", wrong_negloglik_eval_time),
   ), file_conn)
   
   # Close the file connection

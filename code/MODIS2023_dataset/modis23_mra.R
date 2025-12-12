@@ -80,10 +80,16 @@ vecchia_estimate_fixed_smoothness_1.5 <- function(data, locs, X, m = 20, covmode
               trend = trend, locs = locs, covmodel = covmodel))
 }
 
+crps <- function(predlist,trueobs) {
+  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
+  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
+                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
+  return(scores)
+}
 
 #load data
-train_data <- read.csv("/data/MODIS_data_train.txt", row.names=1, sep="")
-test_data<-read.csv("/data/MODIS_data_test.txt", row.names=1, sep="")
+train_data <- read.csv("data/MODIS_data_train.txt", row.names=1, sep="")
+test_data<-read.csv("data/MODIS_data_test.txt", row.names=1, sep="")
 
 #scale down coordinates for numerical stability
 train_data$east<-train_data$east/10000
@@ -130,8 +136,8 @@ true_negloglik_eval_time <- system.time({
   true_negloglik <- -vecchia_likelihood(train_detrended, vecchia.approx, c(marginal_var, range, 1.5), nugget)
 })[3]
 
-fake_negloglik_eval_time <- system.time({
-  fake_negloglik <- -vecchia_likelihood(train_detrended, vecchia.approx, c(2 * marginal_var, 2 * range, 1.5), 2 * nugget)
+wrong_negloglik_eval_time <- system.time({
+  wrong_negloglik <- -vecchia_likelihood(train_detrended, vecchia.approx, c(2 * marginal_var, 2 * range, 1.5), 2 * nugget)
 })[3]
 
 
@@ -166,22 +172,15 @@ test_score<-mean( (0.5*(pred_test$mean.pred-test_data$temp)^2)/pred_test$var.pre
                   + 0.5*log(2*pi*pred_test$var.pred))
 
 #crps
-crps <- function(predlist,trueobs) {
-  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
-  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
-                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
-  return(scores)
-}
-
 train_crps<-mean(crps(list(mean=pred_train$mu.obs,sd=sqrt(pred_train$var.obs)),train_data$temp))
 test_crps<-mean(crps(list(mean=pred_test$mean.pred,sd=sqrt(pred_test$var.pred)),test_data$temp))
 
 
 # Create the filename
-filename <- paste0("modis23_mra_",r)
+filename <- paste0("mra_modis23_r",r)
 
 # Open the file for writing
-file_path <- paste0(filename, ".txt")
+file_path <- paste0("results/modis23/",filename, ".txt")
 file_conn <- file(file_path, "w")
 
 
@@ -199,9 +198,9 @@ writeLines(c(
   paste0("crps train: ", train_crps),
   paste0("crps test: ", test_crps),
   paste0("true negloglik: ",true_negloglik),
-  paste0("fake negloglik: ",fake_negloglik),
+  paste0("wrong negloglik: ",wrong_negloglik),
   paste0("time for true negloglik evaluation: ",true_negloglik_eval_time),
-  paste0("time for fake negloglik evaluation: ",fake_negloglik_eval_time)
+  paste0("time for wrong negloglik evaluation: ",wrong_negloglik_eval_time)
 ), file_conn)
 
 # Close the file connection

@@ -6,7 +6,14 @@ library(rSPDE)
 options(mc.cores = 8)
 
 #load data
-load("/data/AllSatelliteTemps.RData")
+load("data/AllSatelliteTemps.RData")
+
+crps <- function(predlist,trueobs) {
+  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
+  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
+                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
+  return(scores)
+}
 
 #we define a function that will be called for every tuning parameter
 run_spde<-function(max.edge){
@@ -95,22 +102,15 @@ run_spde<-function(max.edge){
                       0.5*log(2*pi*pred_test_var) ,na.rm=T)
   
   #crps
-  crps <- function(predlist,trueobs) {
-    z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
-    scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
-                               2 * dnorm(z, 0, 1) - 1/sqrt(pi))
-    return(scores)
-  }
-  
   train_crps<-mean(crps(list(mean=pred_train_mean,sd=sqrt(pred_train_var)),train_data$TrueTemp))
   test_crps<-mean(crps(list(mean=pred_test_mean,sd=sqrt(pred_test_var)),test_data$TrueTemp))
   
   
   # Create the filename
-  filename <- paste0("modis16_spde_",max.edge)
+  filename <- paste0("spde_modis16_max_edge",max.edge)
   
   # Open the file for writing
-  file_path <- paste0(filename, ".txt")
+  file_path <- paste0("results/modis16/",filename, ".txt")
   file_conn <- file(file_path, "w")
   
   
@@ -128,9 +128,9 @@ run_spde<-function(max.edge){
     paste0("crps train: ", train_crps),
     paste0("crps test: ", test_crps),
     paste0("true negloglik: "),
-    paste0("fake negloglik: "),
+    paste0("wrong negloglik: "),
     paste0("time for true negloglik evaluation: "),
-    paste0("time for fake negloglik evaluation: "),
+    paste0("time for wrong negloglik evaluation: "),
   ), file_conn)
   
   # Close the file connection

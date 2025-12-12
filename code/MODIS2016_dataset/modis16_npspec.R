@@ -4,8 +4,15 @@
 library("npspec")
 options(mc.cores = 8)
 
+crps <- function(predlist,trueobs) {
+  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
+  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
+                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
+  return(scores)
+}
+
 #load data
-load("/data/AllSatelliteTemps.RData")
+load("data/AllSatelliteTemps.RData")
 
 #convert data to matrix
 tmpr <- matrix( all.sat.temps$MaskTemp, 500, 300 )
@@ -67,13 +74,6 @@ test_score<-mean( (0.5*(pred_vec[test_index]-all.sat.temps$TrueTemp[test_index])
                     0.5*log(2*pi*pred_vec[test_index]) ,na.rm=T)
 
 #crps
-crps <- function(predlist,trueobs) {
-  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
-  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
-                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
-  return(scores)
-}
-
 train_crps<-mean(crps(list(mean=pred_vec[train_index],sd=sqrt(predvar_vec[train_index])),
                       all.sat.temps$TrueTemp[train_index]))
 test_crps<-mean(crps(list(mean=pred_vec[test_index],sd=sqrt(predvar_vec[test_index])),
@@ -81,10 +81,10 @@ test_crps<-mean(crps(list(mean=pred_vec[test_index],sd=sqrt(predvar_vec[test_ind
 
 
 # Create the filename
-filename <- paste0("modis16_npspec_",embedding_factor)
+filename <- paste0("npspec_modis16_",embedding_factor)
 
 # Open the file for writing
-file_path <- paste0(filename, ".txt")
+file_path <- paste0("results/modis16/",filename, ".txt")
 file_conn <- file(file_path, "w")
 
 
@@ -102,9 +102,9 @@ writeLines(c(
   paste0("crps train: ", train_crps),
   paste0("crps test: ", test_crps),
   paste0("true negloglik: "),
-  paste0("fake negloglik: "),
+  paste0("wrong negloglik: "),
   paste0("time for true negloglik evaluation: "),
-  paste0("time for fake negloglik evaluation: "),
+  paste0("time for wrong negloglik evaluation: "),
 ), file_conn)
 
 # Close the file connection

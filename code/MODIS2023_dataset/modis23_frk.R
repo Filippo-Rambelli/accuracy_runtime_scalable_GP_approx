@@ -12,12 +12,19 @@ library(fields)
 opts_FRK$set("parallel",8L)
 print(opts_FRK$get("parallel"))
 
+crps <- function(predlist,trueobs) {
+  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
+  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
+                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
+  return(scores)
+}
+
 #we define a function that will be called for every tuning parameter
 run_frk<-function(nres){
   set.seed(nres)
   
-  train_data <- read.csv("/data/MODIS_data_train.txt", row.names=1, sep="")
-  test_data<-read.csv("/data/MODIS_data_test.txt", row.names=1, sep="")
+  train_data <- read.csv("data/MODIS_data_train.txt", row.names=1, sep="")
+  test_data<-read.csv("data/MODIS_data_test.txt", row.names=1, sep="")
   
   #due to convergence failure, we has to scale down coordinates by a factor 10e+4
   train_data$east<-train_data$east/10000
@@ -79,13 +86,6 @@ run_frk<-function(nres){
                       0.5*log(2*pi*pred_test$var) )
   
   #crps
-  crps <- function(predlist,trueobs) {
-    z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
-    scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
-                               2 * dnorm(z, 0, 1) - 1/sqrt(pi))
-    return(scores)
-  }
-  
   train_crps<-mean(crps(list(mean=pred_train$mu,sd=sqrt(pred_train$var)),
                         train_data$temp))
   test_crps<-mean(crps(list(mean=pred_test$mu,sd=sqrt(pred_test$var)),
@@ -93,10 +93,10 @@ run_frk<-function(nres){
   
   
   # Create the filename
-  filename <- paste0("modis23_frk",nres)
+  filename <- paste0("frk_modis23_nres",nres)
   
   # Open the file for writing
-  file_path <- paste0(filename, ".txt")
+  file_path <- paste0("results/modis23/",filename, ".txt")
   file_conn <- file(file_path, "w")
   
   
@@ -114,9 +114,9 @@ run_frk<-function(nres){
     paste0("crps train: ", train_crps),
     paste0("crps test: ", test_crps),
     paste0("true negloglik: "),
-    paste0("fake negloglik: "),
+    paste0("wrong negloglik: "),
     paste0("time for true negloglik evaluation: "),
-    paste0("time for fake negloglik evaluation: "),
+    paste0("time for wrong negloglik evaluation: "),
   ), file_conn)
   
   # Close the file connection

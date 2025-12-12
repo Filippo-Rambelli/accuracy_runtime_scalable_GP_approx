@@ -3,7 +3,7 @@
 
 library(FRK)
 library(sp)
-library("ggpubr")
+library(ggpubr)
 library(gridExtra)
 library(splancs)
 library(gstat)
@@ -11,9 +11,16 @@ library(fields)
 options(mc.cores = 8)
 opts_FRK$set("parallel",8L)
 
+crps <- function(predlist,trueobs) {
+  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
+  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
+                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
+  return(scores)
+}
+
 #load data
-load("/data/AllSatelliteTemps.RData")
-load("/data/SatelliteTemps.RData")
+load("data/AllSatelliteTemps.RData")
+load("data/SatelliteTemps.RData")
 
 #we define a function that will be called for every tuning parameter
 run_frk<-function(nres){
@@ -73,13 +80,6 @@ run_frk<-function(nres){
                       0.5*log(2*pi*pred_test$var) ,na.rm=T)
   
   #crps
-  crps <- function(predlist,trueobs) {
-    z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
-    scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
-                               2 * dnorm(z, 0, 1) - 1/sqrt(pi))
-    return(scores)
-  }
-  
   train_crps<-mean(crps(list(mean=pred_train$mu,sd=sqrt(pred_train$var)),
                         train_data$Temp))
   test_crps<-mean(crps(list(mean=pred_test$mu,sd=sqrt(pred_test$var)),
@@ -87,10 +87,10 @@ run_frk<-function(nres){
   
   
   # Create the filename
-  filename <- paste0("modis16_frk_",nres)
+  filename <- paste0("frk_modis16_nres",nres)
   
   # Open the file for writing
-  file_path <- paste0(filename, ".txt")
+  file_path <- paste0("results/modis16/",filename, ".txt")
   file_conn <- file(file_path, "w")
   
   # Write the data to the file
@@ -107,9 +107,9 @@ run_frk<-function(nres){
     paste0("crps train: ", train_crps),
     paste0("crps test: ", test_crps),
     paste0("true negloglik: "),
-    paste0("fake negloglik: "),
+    paste0("wrong negloglik: "),
     paste0("time for true negloglik evaluation: "),
-    paste0("time for fake negloglik evaluation: "),
+    paste0("time for wrong negloglik evaluation: "),
   ), file_conn)
   
   # Close the file connection

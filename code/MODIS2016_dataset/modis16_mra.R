@@ -5,8 +5,8 @@ library(readr)
 options(mc.cores = 8)
 
 #load data
-load("/data/AllSatelliteTemps.RData")
-load("/data/SatelliteTemps.RData")
+load("data/AllSatelliteTemps.RData")
+load("data/SatelliteTemps.RData")
 
 #exponential covfun=matern covfun with smoothness=0.5
 #we manually define a function to optimize all the covariance parameters but the
@@ -83,6 +83,13 @@ vecchia_estimate_fixed_smoothness_0.5 <- function(data, locs, X, m = 20, covmode
               trend = trend, locs = locs, covmodel = covmodel))
 }
 
+crps <- function(predlist,trueobs) {
+  z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
+  scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
+                             2 * dnorm(z, 0, 1) - 1/sqrt(pi))
+  return(scores)
+}
+
 #we define a function that will be called for every tuning parameter
 run_mra<-function(r){
   set.seed(r)
@@ -131,8 +138,8 @@ run_mra<-function(r){
   })[3]
   
   
-  fake_negloglik_eval_time <- system.time({
-    fake_negloglik<- -vecchia_likelihood(train_detrended, vecchia.approx, 
+  wrong_negloglik_eval_time <- system.time({
+    wrong_negloglik<- -vecchia_likelihood(train_detrended, vecchia.approx, 
                                          c(2*marginal_var, 2*range, 0.5), 2 * nugget)
   })[3]
   
@@ -172,22 +179,15 @@ run_mra<-function(r){
                     + 0.5*log(2*pi*pred_test$var.pred) )
   
   #crps
-  crps <- function(predlist,trueobs) {
-    z <- as.numeric((trueobs - predlist$mean) / predlist$sd)
-    scores <- predlist$sd * (z *(2 * pnorm(z, 0, 1) - 1) +
-                               2 * dnorm(z, 0, 1) - 1/sqrt(pi))
-    return(scores)
-  }
-  
   train_crps<-mean(crps(list(mean=pred_train$mu.obs,sd=sqrt(pred_train$var.obs)),train_data$Temp))
   test_crps<-mean(crps(list(mean=pred_test$mean.pred,sd=sqrt(pred_test$var.pred)),test_data$TrueTemp))
   
   
   # Create the filename
-  filename <- paste0("modis_16_mra_",r)
+  filename <- paste0("mra_modi16_r",r)
   
   # Open the file for writing
-  file_path <- paste0(filename, ".txt")
+  file_path <- paste0("results/modis16/",filename, ".txt")
   file_conn <- file(file_path, "w")
   
   # Write the data to the file
@@ -204,9 +204,9 @@ run_mra<-function(r){
     paste0("crps train: ", train_crps),
     paste0("crps test: ", test_crps),
     paste0("true negloglik: ", true_negloglik),
-    paste0("fake negloglik: ", fake_negloglik),
+    paste0("wrong negloglik: ", wrong_negloglik),
     paste0("time for true negloglik evaluation: ", true_negloglik_eval_time),
-    paste0("time for fake negloglik evaluation: ", fake_negloglik_eval_time),
+    paste0("time for wrong negloglik evaluation: ", wrong_negloglik_eval_time),
   ), file_conn)
   
   # Close the file connection
